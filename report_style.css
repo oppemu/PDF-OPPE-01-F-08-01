@@ -1,0 +1,131 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'TH Sarabun New', sans-serif;
+    font-weight: 300; 
+    font-size: 18px; /* เปลี่ยนจาก 16px เป็น 18px */
+    line-height: 1.8;
+    background-color: #dbe2e8;
+    color: #000;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* เพิ่มโค้ดนี้ต่อท้ายเข้าไป เพื่อควบคุมตารางในหน้า PDF (ถ้ามี) ให้ไม่เบียดกัน */
+td, th {
+    padding: 10px 8px;
+    vertical-align: top;
+}
+
+h1, h2, h3, h4, h5, h6, strong, b, th {
+    font-weight: 300 !important;
+}
+
+#loadingMsg, #errorMsg {
+    text-align: center;
+    font-size: 18pt;
+    padding: 50px;
+}
+#errorMsg { color: #dc3545; }
+
+.print-controls {
+    margin-bottom: 20px;
+    width: 210mm;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.print-controls button {
+    font-family: 'TH Sarabun New', sans-serif;
+    font-weight: 400;
+    font-size: 16pt;
+    padding: 8px 20px;
+    background-color: #002D62;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.print-controls button:hover {
+    background-color: #001f44;
+}
+
+/* หน้ากระดาษ A4 */
+.a4-page {
+    width: 210mm;
+    min-height: 297mm;
+    background: white;
+    padding: 20mm 20mm 20mm 30mm;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.logo-container {
+    text-align: center;
+    width: 100%;
+}
+
+.logo {
+    width: 2.5cm;
+    height: 2.5cm;
+    object-fit: contain;
+}
+
+.sender-info {
+    text-align: right;
+    margin-top: -1.5em;
+    margin-bottom: 20px;
+}
+
+.doc-meta {
+    margin-bottom: 15px;
+}
+
+.meta-row {
+    margin-bottom: 5px;
+}
+
+.meta-label {
+    display: inline-block;
+    width: 2cm; 
+}
+
+.content-section {
+    text-align: justify;
+}
+
+.content-section p {
+    margin: 0 0 10px 0;
+}
+
+.indent {
+    text-indent: 2.5cm; 
+}
+
+@media print {
+    body {
+        background-color: transparent;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .print-controls, #loadingMsg, #errorMsg {
+        display: none !important;
+    }
+    
+    .a4-page {
+        box-shadow: none;
+        margin: 0;
+        width: 100%;
+        height: auto;
+        min-height: auto;
+        padding: 20mm 20mm 20mm 30mm;
+        page-break-after: avoid;
+    }
+}
