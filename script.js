@@ -132,6 +132,7 @@ function showPdfPreview(result, rowIndex) {
     if (selectedRowIndex !== rowIndex) return;
     document.getElementById('letterPreview').innerHTML = result.letterHtml;
     document.getElementById('previewContent').innerHTML = result.legacyHtml;
+    document.getElementById('pdfFilenameHint').textContent = 'ชื่อไฟล์แนะนำ: ' + result.fileName;
     ReportEditor.prepare(document.getElementById('pdfPreviewModal'), rowIndex);
 }
 async function previewPdfInstant(rowIndex) {
@@ -141,6 +142,7 @@ async function previewPdfInstant(rowIndex) {
     if (!item) return;
     document.getElementById('letterPreview').innerHTML = '';
     document.getElementById('previewContent').innerHTML = '';
+    document.getElementById('pdfFilenameHint').textContent = '';
     document.getElementById('letterNotice').textContent = 'กำลังจัดหน้าเอกสาร…';
     document.getElementById('editorStatus').textContent = '';
     bootstrap.Modal.getOrCreateInstance(document.getElementById('pdfPreviewModal')).show();
@@ -173,6 +175,7 @@ async function resetDocumentEdits() {
     await previewPdfInstant(selectedRowIndex);
 }
 async function createPdfDocument(item, edits = {}) {
+    const fileName = ReportLetter.getPdfFilename(item);
     for (const key of ['letter-footer', 'legacy-footer']) {
         if (Object.prototype.hasOwnProperty.call(edits, key) && /[\r\n]/.test(edits[key])) throw new Error('ข้อความ footer ต้องอยู่ในบรรทัดเดียว กรุณาตรวจข้อความก่อนพิมพ์');
     }
@@ -280,7 +283,7 @@ async function createPdfDocument(item, edits = {}) {
     ReportLetter.numberPages(numberedPages, letter.pageCount + 1);
     pagesHtml = numberedPages.innerHTML;
 
-    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>พิมพ์เอกสาร</title>' +
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + ReportLetter.escapeHtml(fileName.slice(0, -4)) + '</title>' +
         '<base href="' + ReportLetter.escapeHtml(new URL('.', document.baseURI).href) + '">' +
         '<style>' +
             '@import url("https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap");' +
@@ -296,7 +299,7 @@ async function createPdfDocument(item, edits = {}) {
         '<script>' +
             'window.onload = async function() { if (document.fonts) await document.fonts.ready; await Promise.all(Array.from(document.images).map(function(img) { return img.complete ? Promise.resolve() : new Promise(function(resolve) { img.onload = img.onerror = resolve; }); })); window.print(); };' +
         '<\/script></body></html>';
-    return {letterHtml: letter.html, legacyHtml: pagesHtml, html};
+    return {letterHtml: letter.html, legacyHtml: pagesHtml, fileName, html};
 }
 async function downloadPdfFromPreview() {
     if (printInProgress) return;

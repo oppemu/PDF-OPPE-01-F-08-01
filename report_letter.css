@@ -38,7 +38,8 @@
 /* Keep the sender block in document flow so a wrapped department never overlaps ที่/วันที่. */
 .letter-header { padding-top: 36.445pt; text-align: right; margin-bottom: 20pt; }
 .letter-department { margin-left: 360pt; text-align: left; }
-.letter-label { display: inline-block; width: 25pt; flex-shrink: 0; }
+.letter-label { display: inline-block; margin-right: 0.635cm; flex-shrink: 0; }
+.letter-gap-text { display: inline-block; width: 0; height: 0; overflow: hidden; vertical-align: baseline; font-size: 0; line-height: 0; white-space: pre; }
 .letter-meta { margin-bottom: 20pt; }
 .letter-subject { display: block; }
 .letter-recipient { margin-bottom: 16.445pt; }

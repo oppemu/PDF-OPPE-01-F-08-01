@@ -285,10 +285,21 @@
             supervisors: parsePeople(roster || (details && details.value) || item.supervisorsPeople || item.colBA)
         };
     }
-    function editText(key, html, edits = {}) {
+    function editText(key, html, edits = {}, formatEdited) {
         const changed = Object.prototype.hasOwnProperty.call(edits, key);
-        const content = changed ? escapeHtml(String(edits[key])) : html;
+        const content = changed ? (formatEdited ? formatEdited(String(edits[key])) : escapeHtml(String(edits[key]))) : html;
         return `<span class="pdf-edit-text${changed ? ' pdf-edited-text' : ''}" data-edit-key="${escapeHtml(key)}">${content}</span>`;
+    }
+    function editHeaderLine(key, label, valueHtml, edits) {
+        const line = (html, separator = '') => `<span class="letter-label">${label}${separator ? `<span class="letter-gap-text">${escapeHtml(separator)}</span>` : ''}</span><span class="letter-field-value">${html}</span>`;
+        return editText(key, line(valueHtml), edits, value => {
+            // Keep the half-tab gap after the original label when the line is edited.
+            // A deliberately deleted/renamed label stays as the user typed it.
+            if (!value.startsWith(label)) return escapeHtml(value);
+            const tail = value.slice(label.length);
+            const separator = tail.match(/^[ \t\u00a0]*/)[0];
+            return line(escapeHtml(tail.slice(separator.length)), separator);
+        });
     }
     const FOOTER_TEXT = 'รหัสเอกสาร(Doc. No.): OPPE-01-F-08-01 | ฉบับที่ (Rev ที่.No.):00 | วันที่บังคับใช้ (Effective Date): 01/10/2026 | ';
     function footerHtml(pageNumber, edits = {}) {
@@ -358,6 +369,41 @@
         if (/(?:ไม่|ยังไม่)\s*แล้วเสร็จ|ไม่เป็นไปตาม|ไม่ครบ|ไม่ผ่าน|ระหว่างดำเนิน|ยังดำเนิน|ค้าง|รอแก้|มีข้อบกพร่อง/.test(status)) return 'incomplete';
         return /^แล้วเสร็จ\s*เป็นไปตามเงื่อนไขของสัญญา$/.test(status) ? 'complete' : 'unknown';
     }
+    function getPdfFilename(item) {
+        const clean = value => text(value).normalize('NFC')
+            .replace(/[<>:"/\\|?*\u0000-\u001f\u007f-\u009f]/g, ' ')
+            .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '')
+            .replace(/\s+/g, ' ').replace(/^[. ]+|[. ]+$/g, '');
+        const graphemes = value => typeof Intl.Segmenter === 'function'
+            ? [...new Intl.Segmenter('th', {granularity: 'grapheme'}).segment(value)].map(part => part.segment)
+            : (value.match(/\P{M}\p{M}*|\p{M}+/gu) || []);
+        const shorten = (value, limit) => {
+            const parts = graphemes(value);
+            if (parts.length <= limit) return value;
+            const candidate = parts.slice(0, limit).join('');
+            if (typeof Intl.Segmenter === 'function') {
+                const boundaries = [...new Intl.Segmenter('th', {granularity: 'word'}).segment(value)]
+                    .map(part => part.index + part.segment.length)
+                    .filter(end => end <= candidate.length && end >= candidate.length * 0.65);
+                if (boundaries.length) return candidate.slice(0, boundaries[boundaries.length - 1]).trim();
+            }
+            return candidate.trim();
+        };
+        const topic = clean(getFields(item).subject).replace(/\.pdf$/i, '').split(/\s+เพื่อ(?=[ก-๙\s])/)[0].trim();
+        const rawId = clean(item.colA || '');
+        const idParts = graphemes(/^[._\- ]*$/.test(rawId) ? '' : shorten(rawId, 24));
+        while (new TextEncoder().encode(idParts.join('')).length > 80) idParts.pop();
+        const id = clean(idParts.join(''));
+        const fallbackId = Number.isFinite(Number(item.rowIndex)) && Number(item.rowIndex) > 0 ? `รายการ-${item.rowIndex}` : '';
+        const suffix = id || fallbackId;
+        // Leave room for the extension on filesystems with a 255-byte name limit.
+        const parts = graphemes(clean(shorten(topic, 32)) || 'รายงาน');
+        const assemble = () => clean([parts.join(''), suffix].filter(Boolean).join('_'));
+        while (new TextEncoder().encode(assemble() + '.pdf').length > 220) parts.pop();
+        let stem = assemble() || 'รายงาน';
+        if (/^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)/i.test(stem)) stem = 'รายงาน_' + stem;
+        return stem + '.pdf';
+    }
     function buildHtml(item, edits = {}) {
         const fields = getFields(item);
         const value = key => `<span data-field="${key}">${escapeHtml(fields[key] || BLANK)}</span>`;
@@ -372,6 +418,7 @@
             finding = `บัดนี้ การดำเนินงานงวดที่ ${installment} มีสถานะตามข้อมูลว่า ${value('status')} โดยมีรายละเอียดตามเอกสารแนบ ทั้งนี้ ผลการพิจารณาตรวจรับงานงวดที่ ${installment} ${BLANK}`;
         }
         const edit = (key, html) => editText(key, html, edits);
+        const headerLine = (key, label, html = '') => editHeaderLine(key, label, html, edits);
         return `<section class="letter-page" lang="th" aria-label="หนังสือรายงานผลการตรวจสอบการส่งมอบงาน" data-row-index="${escapeHtml(item.rowIndex)}">
             <div class="letter-content"><div class="letter-opening">
             <img class="letter-logo" src="report-logo.png" alt="ตรามหาวิทยาลัยมหิดล">
@@ -382,11 +429,11 @@
                 <div class="letter-phone">${edit('letter-phone', `โทร. 02-441-4400 ต่อ ${value('phoneExtension')}`)}</div>
             </div>
             <div class="letter-meta">
-                <div data-field="memo-number-line">${edit('letter-number', '<span class="letter-label">ที่</span>')}</div>
-                <div data-field="memo-date-line">${edit('letter-date', '<span class="letter-label">วันที่</span>')}</div>
-                <div class="letter-subject">${edit('letter-subject', `<span class="letter-label">เรื่อง</span><span>รายงานผลการตรวจสอบการส่งมอบงาน งวดที่ ${installment} ${value('subject')}</span>`)}</div>
+                <div data-field="memo-number-line">${headerLine('letter-number', 'ที่')}</div>
+                <div data-field="memo-date-line">${headerLine('letter-date', 'วันที่')}</div>
+                <div class="letter-subject">${headerLine('letter-subject', 'เรื่อง', `รายงานผลการตรวจสอบการส่งมอบงาน งวดที่ ${installment} ${value('subject')}`)}</div>
             </div>
-            <div class="letter-recipient">${edit('letter-recipient', '<span class="letter-label">เรียน</span>ประธานกรรมการตรวจรับพัสดุ')}</div></div>
+            <div class="letter-recipient">${headerLine('letter-recipient', 'เรียน', 'ประธานกรรมการตรวจรับพัสดุ')}</div></div>
             <div class="letter-body">
                 <p>${edit('letter-body-0', `ตามที่ ${companyPrefix}${value('company')} ได้มีหนังสือเลขที่ ${value('companyLetterNumber')} ลงวันที่ ${value('companyLetterDate')} แจ้งขอส่งมอบงานงวดที่ ${installment} ตามสัญญาที่ ${value('contractNumber')} ลงวันที่ ${value('contractDate')} นั้น`)}</p>
                 <p>${edit('letter-body-1', finding)}</p>
@@ -514,6 +561,6 @@
             .forEach(name => missing.push('คำนำหน้า ' + name));
         return missing;
     }
-    root.ReportLetter = { editText, buildHtml, getFields, getPersonnel, parsePeople, formatPersonName, hasVerifiedPrefix, paginate, renderPaginated, numberPages, footerHtml, missingFields, formatDate, formatInstallment, formatSubject, statusKind, escapeHtml, expandDepartment, departmentExtension };
+    root.ReportLetter = { getPdfFilename, editText, buildHtml, getFields, getPersonnel, parsePeople, formatPersonName, hasVerifiedPrefix, paginate, renderPaginated, numberPages, footerHtml, missingFields, formatDate, formatInstallment, formatSubject, statusKind, escapeHtml, expandDepartment, departmentExtension };
     if (typeof module !== 'undefined' && module.exports) module.exports = root.ReportLetter;
 }(typeof window !== 'undefined' ? window : globalThis));
