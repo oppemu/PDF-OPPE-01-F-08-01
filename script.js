@@ -81,6 +81,20 @@ function renderTable(list) {
 // ==========================================
 // 1. ฟังก์ชันช่วยเช็คหัวข้อหมวดหมู่ 1-5
 // ==========================================
+function getDocumentRowValue(row) {
+    const label = String(row.label || '').replace(/\s+/g, '');
+    return (label === 'หน่วยงาน' || label === 'หน่วยงานต้นสังกัด')
+        ? ReportLetter.expandDepartment(row.value)
+        : row.value;
+}
+
+function getLegacyDocumentRows(rows) {
+    // สองคอลัมน์ใหม่ใช้ในหนังสือส่วนแรกเท่านั้น ไม่เพิ่มแถวหรือหน้าในแบบฟอร์มเดิม
+    const letterOnlyLabels = ['เลขที่หนังสือส่งงานของบริษัท', 'วันที่บนหนังสือบริษัท',
+        'เลขที่หนังสือส่งมอบงาน', 'เลขที่หนังสือบริษัท', 'submissionLetterNo', 'submissionLetterDate'];
+    return rows.filter(row => !letterOnlyLabels.includes(String(row.label || '').replace(/\s+/g, '')));
+}
+
 function getSectionTitle(row, index) {
     if (!row || !row.label) return "";
     const label = row.label.toString().trim();
@@ -107,172 +121,204 @@ function getSectionTitle(row, index) {
 // ==========================================
 // 2. ฟังก์ชันพรีวิวเอกสาร (จุด : ของข้อ 4-5 ตรงกันทุกบรรทัด)
 // ==========================================
-function previewPdfInstant(rowIndex) {
+let previewRequestId = 0;
+let printInProgress = false;
+function previewMessage(item) {
+    const missing = ReportLetter.missingFields(item);
+    return 'คลิกข้อความเพื่อแก้ไขได้ทั้งสองเอกสาร แล้วกดจัดหน้าใหม่หรือดาวน์โหลด PDF • แก้เฉพาะสำเนาในแท็บนี้ ไม่บันทึกกลับชีต' +
+        (missing.length ? ' • ข้อมูลที่ยังไม่ครบหรือควรตรวจสอบ: ' + missing.join(', ') : '');
+}
+function showPdfPreview(result, rowIndex) {
+    if (selectedRowIndex !== rowIndex) return;
+    document.getElementById('letterPreview').innerHTML = result.letterHtml;
+    document.getElementById('previewContent').innerHTML = result.legacyHtml;
+    ReportEditor.prepare(document.getElementById('pdfPreviewModal'), rowIndex);
+}
+async function previewPdfInstant(rowIndex) {
     selectedRowIndex = rowIndex;
+    const requestId = ++previewRequestId;
     const item = globalList.find(x => x.rowIndex === rowIndex);
     if (!item) return;
-
-    let rowsHtml = "";
-    let shownSections = {};
-    let currentSectionTitle = "";
-
-    if (item.fullRowData && item.fullRowData.length > 0) {
-        item.fullRowData.forEach((row, index) => {
-            const sectionTitle = getSectionTitle(row, index);
-            
-            if (sectionTitle && !shownSections[sectionTitle]) {
-                currentSectionTitle = sectionTitle;
-                rowsHtml += '<div style="font-size: 18px; font-weight: bold; color: #000000; margin-top: 15px; margin-bottom: 6px;">' + sectionTitle + '</div>';
-                shownSections[sectionTitle] = true;
-            }
-
-            // ข้อ 4 และ 5: ล็อกความกว้างฝั่งซ้ายและกล่องเครื่องหมาย : ให้ตรงกันทุกบรรทัด
-            if (currentSectionTitle.startsWith("4.") || currentSectionTitle.startsWith("5.")) {
-                rowsHtml += '<div style="display: flex; align-items: flex-start; margin-bottom: 6px; font-size: 18px; line-height: 1.4;">' +
-                    '<div style="width: 52%; padding-right: 10px; word-break: break-word;">' + (row.label || '') + '</div>' +
-                    '<div style="width: 20px; text-align: center; flex-shrink: 0;">:</div>' +
-                    '<div style="flex: 1; padding-left: 5px; word-break: break-word;">' + (row.value || '') + '</div>' +
-                '</div>';
-            } 
-            // ข้อ 1, 2, 3: แสดงผลข้อความต่อติดกันตามธรรมชาติ
-            else {
-                rowsHtml += '<div style="display: flex; align-items: flex-start; margin-bottom: 6px; font-size: 18px; line-height: 1.4;">' +
-                    '<div style="white-space: nowrap; margin-right: 5px; flex-shrink: 0;">' + (row.label || '') + ' :</div>' +
-                    '<div style="word-break: break-word; flex-grow: 1;">' + (row.value || '') + '</div>' +
-                '</div>';
-            }
-        });
+    document.getElementById('letterPreview').innerHTML = '';
+    document.getElementById('previewContent').innerHTML = '';
+    document.getElementById('letterNotice').textContent = 'กำลังจัดหน้าเอกสาร…';
+    document.getElementById('editorStatus').textContent = '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('pdfPreviewModal')).show();
+    try {
+        const result = await createPdfDocument(item, ReportEditor.getEdits(rowIndex));
+        if (selectedRowIndex !== rowIndex || requestId !== previewRequestId) return;
+        showPdfPreview(result, rowIndex);
+        document.getElementById('letterNotice').textContent = previewMessage(item);
+    } catch (error) {
+        if (selectedRowIndex === rowIndex && requestId === previewRequestId) document.getElementById('letterNotice').textContent = error.message;
     }
-
-    const previewContainer = document.getElementById('previewContent');
-    previewContainer.innerHTML = '<div style="font-family: \'TH Sarabun New\', \'Sarabun\', sans-serif; max-width: 85%; margin: 0 auto 0 0;">' +
-        '<div style="text-align: center; font-size: 22px; margin-bottom: 15px; font-weight: bold; color: #000000;">' +
-            'การจัดซื้อจัดจ้างและการควบคุมผู้รับเหมา' +
-        '</div>' +
-        rowsHtml +
-    '</div>';
-
-    const previewModal = new bootstrap.Modal(document.getElementById('pdfPreviewModal'));
-    previewModal.show();
 }
-
-// ==========================================
-// ฟังก์ชันดาวน์โหลด / พิมพ์ PDF (แก้ไข Footer ตามที่ต้องการ)
-// ==========================================
-function downloadPdfFromPreview() {
-    if (typeof selectedRowIndex === 'undefined' || typeof globalList === 'undefined') {
-        alert("ไม่พบข้อมูลรายการที่เลือก");
-        return;
+async function reflowDocumentPreview() {
+    const rowIndex = selectedRowIndex, requestId = ++previewRequestId;
+    const revision = ReportEditor.getRevision(rowIndex);
+    const item = globalList.find(x => x.rowIndex === rowIndex);
+    if (!item) return;
+    try {
+        const result = await createPdfDocument(item, ReportEditor.getEdits(rowIndex));
+        if (selectedRowIndex !== rowIndex || requestId !== previewRequestId) return;
+        if (revision !== ReportEditor.getRevision(rowIndex)) { document.getElementById('editorStatus').textContent = 'มีข้อความแก้ไขเพิ่มระหว่างจัดหน้า กรุณากดจัดหน้าใหม่อีกครั้ง'; return; }
+        showPdfPreview(result, rowIndex);
+        document.getElementById('letterNotice').textContent = previewMessage(item);
+        document.getElementById('editorStatus').textContent = 'จัดหน้าจากข้อความที่แก้ไขแล้ว';
+    } catch (error) { if (selectedRowIndex === rowIndex) document.getElementById('editorStatus').textContent = error.message; }
+}
+async function resetDocumentEdits() {
+    if (!confirm('คืนข้อความของเอกสารรายการนี้ตามข้อมูลต้นฉบับ? ข้อความที่แก้ในสำเนานี้จะถูกล้าง โดยไม่แก้ชีต')) return;
+    ReportEditor.clear(selectedRowIndex);
+    await previewPdfInstant(selectedRowIndex);
+}
+async function createPdfDocument(item, edits = {}) {
+    for (const key of ['letter-footer', 'legacy-footer']) {
+        if (Object.prototype.hasOwnProperty.call(edits, key) && /[\r\n]/.test(edits[key])) throw new Error('ข้อความ footer ต้องอยู่ในบรรทัดเดียว กรุณาตรวจข้อความก่อนพิมพ์');
     }
-
-    const item = globalList.find(x => x.rowIndex === selectedRowIndex);
-    if (!item || !item.fullRowData) {
-        alert("ไม่พบข้อมูลสำหรับการพิมพ์เอกสาร");
-        return;
-    }
-
-    const fullData = item.fullRowData;
-
+    const fullData = getLegacyDocumentRows(item.fullRowData);
+    const edit = (key, value) => ReportLetter.editText(key, ReportLetter.escapeHtml(String(value)), edits);
+    const letter = await ReportLetter.renderPaginated(item, edits);
+    if (document.fonts) await Promise.all([
+        document.fonts.load('18px "Sarabun"'), document.fonts.load('bold 22px "Sarabun"')
+    ]);
     const measureDiv = document.createElement('div');
     measureDiv.style.position = 'absolute';
     measureDiv.style.visibility = 'hidden';
-    measureDiv.style.width = '157mm'; 
+    measureDiv.style.width = '160mm';
     measureDiv.style.fontFamily = '"TH Sarabun New", "Sarabun", sans-serif';
     measureDiv.style.fontSize = '18px';
     measureDiv.style.lineHeight = '1.3';
     document.body.appendChild(measureDiv);
 
-    const maxContentHeightPx = 1010; 
+    // A4: ขอบบน 20 มม. ล่าง 5 มม. กันพื้นที่ footer และช่องว่างอีก 8 px
+    const maxContentHeightPx = (297 - 20 - 5) * 96 / 25.4 - 14 * 1.3 - 8;
+    const pageHeaderSpace = index => letter.pageCount + index + 1 === 2 ? 40 : 0;
     let pages = [];
     let currentPage = [];
     let currentHeight = 0;
     let shownSections = {};
     let currentSectionTitle = "";
 
-    measureDiv.innerHTML = '<div style="font-size: 22px; font-weight: bold; margin-bottom: 15px; text-align: center;">การจัดซื้อจัดจ้างและการควบคุมผู้รับเหมา</div>';
-    currentHeight = measureDiv.offsetHeight || 40;
+    measureDiv.innerHTML = '<div style="font-size: 22px; font-weight: bold; margin-bottom: 15px; text-align: center;">' + edit('legacy-title', 'การจัดซื้อจัดจ้างและการควบคุมผู้รับเหมา') + '</div>';
+    currentHeight = (measureDiv.offsetHeight || 40) + pageHeaderSpace(0);
 
-    fullData.forEach((row, index) => {
+    for (const [index, row] of fullData.entries()) {
         const sectionTitle = getSectionTitle(row, index);
         let htmlBlock = '';
 
         if (sectionTitle && !shownSections[sectionTitle]) {
             currentSectionTitle = sectionTitle;
-            htmlBlock += '<div style="font-size: 18px; font-weight: bold; margin-top: 15px; margin-bottom: 6px;">' + sectionTitle + '</div>';
+            htmlBlock += '<div style="font-size: 18px; font-weight: bold; margin-top: 15px; margin-bottom: 6px;">' + edit('legacy-section-' + index, sectionTitle) + '</div>';
             shownSections[sectionTitle] = true;
         }
 
         // ข้อ 4 และ 5
         if (currentSectionTitle.startsWith("4.") || currentSectionTitle.startsWith("5.")) {
             htmlBlock += '<div style="display: flex; align-items: flex-start; margin-bottom: 6px; line-height: 1.4;">' +
-                '<div style="width: 52%; padding-right: 10px; word-break: break-word;">' + (row.label || '') + '</div>' +
-                '<div style="width: 20px; text-align: center; flex-shrink: 0;">:</div>' +
-                '<div style="flex: 1; padding-left: 5px; word-break: break-word;">' + (row.value || '') + '</div>' +
+                '<div style="width: 52%; padding-right: 10px; word-break: break-word;">' + edit('legacy-label-' + index, row.label || '') + '</div>' +
+                '<div style="width: 20px; text-align: center; flex-shrink: 0;">' + edit('legacy-colon-' + index, ':') + '</div>' +
+                '<div style="flex: 1; padding-left: 5px; word-break: break-word;">' + edit('legacy-value-' + index, getDocumentRowValue(row) || '') + '</div>' +
             '</div>';
         } else {
             htmlBlock += '<div style="display: flex; align-items: flex-start; margin-bottom: 6px; line-height: 1.4;">' +
-                '<div style="white-space: nowrap; margin-right: 5px; flex-shrink: 0;">' + (row.label || '') + ' :</div>' +
-                '<div style="word-break: break-word; flex-grow: 1;">' + (row.value || '') + '</div>' +
+                '<div style="white-space: nowrap; margin-right: 5px; flex-shrink: 0;">' + edit('legacy-label-' + index, row.label || '') + edit('legacy-colon-' + index, ' :') + '</div>' +
+                '<div style="word-break: break-word; flex-grow: 1;">' + edit('legacy-value-' + index, getDocumentRowValue(row) || '') + '</div>' +
             '</div>';
         }
         
         measureDiv.innerHTML = htmlBlock;
+        // หน้าพิมพ์ไม่ได้ใช้ Bootstrap: วัดด้วย content-box เช่นเดียวกับเอกสารจริง
+        measureDiv.querySelectorAll('*').forEach(element => { element.style.boxSizing = 'content-box'; });
         const blockHeight = measureDiv.offsetHeight || 25;
+        if (blockHeight > maxContentHeightPx - pageHeaderSpace(pages.length) ||
+            (currentPage.length === 0 && currentHeight + blockHeight > maxContentHeightPx)) {
+            measureDiv.remove();
+            throw new Error('ข้อมูลรายละเอียดรายการหนึ่งยาวเกินหนึ่งหน้า กรุณาตรวจข้อความก่อนพิมพ์');
+        }
         
         if (currentHeight + blockHeight > maxContentHeightPx && currentPage.length > 0) {
             pages.push(currentPage);
             currentPage = [{ html: htmlBlock }];
-            currentHeight = blockHeight; 
+            currentHeight = blockHeight + pageHeaderSpace(pages.length);
         } else {
             currentPage.push({ html: htmlBlock });
             currentHeight += blockHeight;
         }
-    });
+    }
 
     if (currentPage.length > 0) {
         pages.push(currentPage);
     }
 
+    measureDiv.innerHTML = '<span style="font-size:14px;line-height:1.3;white-space:pre;">' + edit('legacy-footer', 'รหัสเอกสาร(Doc. No.): OPPE-01-F-08-01 | ฉบับที่ (Rev ที่.No.):00 | วันที่บังคับใช้ (Effective Date): 01/10/2026 | ') + String(letter.pageCount + pages.length) + '</span>';
+    measureDiv.querySelector('[data-edit-key]').style.whiteSpace = 'pre';
+    if (measureDiv.firstElementChild.getBoundingClientRect().width > 190 * 96 / 25.4) {
+        measureDiv.remove();
+        throw new Error('ข้อความ footer ของแบบฟอร์มเดิมยาวเกินขอบกระดาษ กรุณาย่อข้อความก่อนพิมพ์');
+    }
     document.body.removeChild(measureDiv);
 
     let pagesHtml = '';
     pages.forEach((pageRows, i) => {
         let rowsContent = pageRows.map(r => r.html).join('');
-        pagesHtml += '<div class="page">' +
+        pagesHtml += '<div class="page pdf-legacy-page">' +
             '<div class="doc-container">' +
-                (i === 0 ? '<div class="title">การจัดซื้อจัดจ้างและการควบคุมผู้รับเหมา</div>' : '') +
+                (i === 0 ? '<div class="title">' + edit('legacy-title', 'การจัดซื้อจัดจ้างและการควบคุมผู้รับเหมา') + '</div>' : '') +
                 rowsContent +
             '</div>' +
             '<div class="footer">' +
                 // แก้ไขบรรทัดนี้: นำคำว่า "หน้า " ออกไป เหลือเพียงตัวเลข (i + 1)
-                'รหัสเอกสาร(Doc. No.): OPPE-01-F-08-01 | ฉบับที่ (Rev ที่.No.):00 | วันที่บังคับใช้ (Effective Date): 01/10/2026 | ' + (i + 1) +
+                edit('legacy-footer', 'รหัสเอกสาร(Doc. No.): OPPE-01-F-08-01 | ฉบับที่ (Rev ที่.No.):00 | วันที่บังคับใช้ (Effective Date): 01/10/2026 | ') + '<span data-pdf-page-number>' + (letter.pageCount + i + 1) + '</span>' +
             '</div>' +
         '</div>';
     });
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-        alert("กรุณาเปิดการอนุญาต Pop-up บนเว็บเบราว์เซอร์ของคุณเพื่อพิมพ์เอกสาร");
-        return;
-    }
+    // คงเนื้อหาและฟอนต์แบบเดิม ปรับขอบตามคำขอล่าสุดและรันเลขหน้าต่อกัน
+    const numberedPages = document.createElement('div');
+    numberedPages.innerHTML = pagesHtml;
+    ReportLetter.numberPages(numberedPages, letter.pageCount + 1);
+    pagesHtml = numberedPages.innerHTML;
 
-    printWindow.document.write('<!DOCTYPE html><html><head><title>พิมพ์เอกสาร</title>' +
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>พิมพ์เอกสาร</title>' +
+        '<base href="' + ReportLetter.escapeHtml(new URL('.', document.baseURI).href) + '">' +
         '<style>' +
             '@import url("https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap");' +
             '@page { size: A4; margin: 0; }' +
             'body { margin: 0; padding: 0; font-family: "TH Sarabun New", "Sarabun", sans-serif; background: white; font-size: 18px; line-height: 1.3; color: #000000; }' +
-            '.page { width: 210mm; height: 297mm; padding: 15mm 10mm 15mm 15mm; box-sizing: border-box; position: relative; page-break-after: always; overflow: hidden; background: white; }' +
-            '.doc-container { width: 85%; }' +
+            '.page { width: 210mm; height: 297mm; padding: 20mm 20mm 5mm 30mm; box-sizing: border-box; position: relative; page-break-after: always; overflow: hidden; background: white; }' +
+            '.doc-container { width: 100%; }' +
             '.title { text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 15px; color: #000000; }' +
-            '.footer { position: absolute; bottom: 10mm; right: 10mm; font-size: 14px; color: #000000; text-align: right; }' +
+            '.footer { position: absolute; bottom: 5mm; right: 10mm; font-size: 14px; color: #000000; text-align: right; }' +
             '@media print { body { background: white; } .page { margin: 0; box-shadow: none; page-break-after: always; } }' +
-        '</style></head><body>' +
-        pagesHtml +
+        '</style><link rel="stylesheet" href="report_letter.css"></head><body>' +
+        letter.html + pagesHtml +
         '<script>' +
-            'window.onload = function() { window.print(); };' +
-        '<\/script></body></html>');
-
-    printWindow.document.close();
+            'window.onload = async function() { if (document.fonts) await document.fonts.ready; await Promise.all(Array.from(document.images).map(function(img) { return img.complete ? Promise.resolve() : new Promise(function(resolve) { img.onload = img.onerror = resolve; }); })); window.print(); };' +
+        '<\/script></body></html>';
+    return {letterHtml: letter.html, legacyHtml: pagesHtml, html};
+}
+async function downloadPdfFromPreview() {
+    if (printInProgress) return;
+    const rowIndex = selectedRowIndex;
+    const revision = ReportEditor.getRevision(rowIndex);
+    const item = globalList.find(x => x.rowIndex === rowIndex);
+    if (!item || !item.fullRowData) { alert('ไม่พบข้อมูลสำหรับการพิมพ์เอกสาร'); return; }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('กรุณาเปิดการอนุญาต Pop-up บนเว็บเบราว์เซอร์ของคุณเพื่อพิมพ์เอกสาร'); return; }
+    printInProgress = true;
+    try {
+        const result = await createPdfDocument(item, ReportEditor.getEdits(rowIndex));
+        if (revision !== ReportEditor.getRevision(rowIndex)) throw new Error('มีข้อความแก้ไขเพิ่มระหว่างจัดหน้า กรุณากดดาวน์โหลด PDF อีกครั้ง');
+        showPdfPreview(result, rowIndex);
+        printWindow.document.open();
+        printWindow.document.write(result.html);
+        printWindow.document.close();
+    } catch (error) {
+        if (printWindow.close) printWindow.close();
+        alert(error.message);
+        if (selectedRowIndex === rowIndex) document.getElementById('editorStatus').textContent = error.message;
+    } finally { printInProgress = false; }
 }
 // ---- ฟังก์ชันค้นหาเอกสาร ----
 document.addEventListener("DOMContentLoaded", () => {

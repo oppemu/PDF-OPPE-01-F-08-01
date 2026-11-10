@@ -1,0 +1,89 @@
+@font-face {
+    font-family: 'Letter TH Sarabun New';
+    src: url('fonts/THSarabunNew.ttf') format('truetype');
+    font-style: normal;
+    font-weight: 400;
+    font-display: block;
+}
+@font-face {
+    font-family: 'Letter TH Sarabun New';
+    src: url('fonts/THSarabunNewBold.ttf') format('truetype');
+    font-style: normal;
+    font-weight: 700;
+    font-display: block;
+}
+
+/* โครงสร้างจาก Google Doc; เปลี่ยนเป็น TH Sarabun New 15 pt ตามคำขอล่าสุด */
+.letter-page {
+    box-sizing: border-box;
+    position: relative;
+    width: 612pt;
+    height: 792pt;
+    min-height: 792pt;
+    padding: 20mm 20mm 5mm 30mm;
+    margin: 0 auto;
+    background: #fff;
+    color: #000;
+    font-family: 'Letter TH Sarabun New', sans-serif;
+    font-size: 15pt;
+    font-weight: 400;
+    line-height: 20pt;
+    text-align: left;
+    overflow-wrap: break-word;
+}
+.letter-page *, .letter-page *::before, .letter-page *::after { box-sizing: border-box; }
+.letter-content { display: flow-root; }
+
+.letter-logo { position: absolute; left: 50%; transform: translateX(-50%); top: 20mm; width: auto; height: auto; max-width: 25mm; max-height: 25mm; object-fit: contain; }
+/* Keep the sender block in document flow so a wrapped department never overlaps ที่/วันที่. */
+.letter-header { padding-top: 36.445pt; text-align: right; margin-bottom: 20pt; }
+.letter-department { margin-left: 360pt; text-align: left; }
+.letter-label { display: inline-block; width: 25pt; flex-shrink: 0; }
+.letter-meta { margin-bottom: 20pt; }
+.letter-subject { display: block; }
+.letter-recipient { margin-bottom: 16.445pt; }
+.letter-recipient-position { margin-left: 36pt; }
+.letter-body p { margin: 0 0 16.445pt; text-indent: 2.54cm; text-align: justify; text-align-last: left; text-justify: auto; }
+.letter-body p:last-child { margin-bottom: 0; }
+.letter-signatures { display: flow-root; }
+.letter-signature-primary, .letter-signature-remaining { display: flow-root; }
+.letter-signature-chair { margin-top: var(--signature-gap, 32.89pt); text-align: center; break-inside: avoid; }
+.letter-signature-row { display: flex; column-gap: 24pt; padding-top: var(--signature-gap, 32.89pt); text-align: center; break-inside: avoid; }
+.letter-signature-row > div { flex: 1 1 0; min-width: 0; }
+.letter-signature-person { min-height: calc(var(--signature-space, 40pt) + 40pt); }
+.letter-signature-space { height: var(--signature-space, 40pt); }
+.letter-signature-name { overflow-wrap: break-word; }
+.pdf-second-page-marker { position: absolute; top: 20mm; left: 0; right: 0; height: 20pt; text-align: center; color: #000; font-family: 'Letter TH Sarabun New', sans-serif; font-size: 15pt; font-weight: 400; line-height: 20pt; }
+.has-second-page-marker > .letter-content, .has-second-page-marker > .doc-container { padding-top: 30pt; }
+.letter-footer { position: absolute; bottom: 5mm; right: 10mm; left: 10mm; font-size: 14px; line-height: 1.3; text-align: right; white-space: nowrap; }
+.letter-preview-heading { margin: 24px 0 12px; color: #00246B; font-size: 1.1rem; }
+.letter-preview-scroll { overflow-x: auto; padding-bottom: 12px; }
+/* หน้าตัวอย่างใช้ขนาดจริงเดียวกับ PDF ไม่ย่อหรือเปลี่ยนระยะขอบตามความกว้าง modal */
+#pdfPreviewModal .modal-dialog { max-width: 900px; }
+.letter-preview-scroll .letter-page { flex: none; max-width: none; }
+.letter-preview-notice { padding: 10px 14px; margin-bottom: 12px; border: 1px solid #d5dae1; border-radius: 6px; background: #fff; font-size: 14px; }
+.letter-preview-scroll .letter-page { margin: 0; box-shadow: 0 0 10px rgba(0,0,0,.1); }
+.letter-preview-scroll .letter-page + .letter-page { margin-top: 16px; }
+@page reportLetter { size: 612pt 792pt; margin: 0; }
+@media print {
+    .letter-page { page: reportLetter; break-before: page; break-after: page; margin: 0; box-shadow: none; }
+    .letter-logo, .letter-signature-chair, .letter-signature-row { break-inside: avoid; }
+}
+
+/* ทั้งหน้าตัวอย่างและ PDF ใช้กรอบแบบฟอร์มเดิมชุดเดียวกัน */
+.pdf-legacy-page { width: 210mm; height: 297mm; padding: 20mm 20mm 5mm 30mm; box-sizing: border-box; position: relative; background: white; color: #000; font-family: 'TH Sarabun New', 'Sarabun', sans-serif; font-size: 18px; font-weight: 400; line-height: 1.3; }
+.pdf-legacy-page * { box-sizing: content-box; }
+.pdf-legacy-page .doc-container { width: 100%; }
+.pdf-legacy-page .title { text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 15px; color: #000; }
+.pdf-legacy-page .footer { position: absolute; bottom: 5mm; right: 10mm; font-size: 14px; line-height: 1.3; color: #000; text-align: right; white-space: nowrap; }
+.pdf-edit-text { white-space: inherit; }
+.pdf-edited-text { white-space: pre-wrap; }
+.pdf-edit-text:empty { display: inline-block; min-width: 1ch; min-height: 1em; }
+.letter-footer .pdf-edit-text, .footer .pdf-edit-text { white-space: pre; }
+.pdf-editor-toolbar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; margin-bottom: 12px; background: #f8f9fa; border: 1px solid #d5dae1; border-radius: 6px; font-size: 13px; }
+.legacy-preview-scroll { overflow-x: auto; padding-bottom: 12px; }
+.legacy-preview-scroll .pdf-legacy-page { margin: 0; box-shadow: 0 0 10px rgba(0,0,0,.1); }
+.legacy-preview-scroll .pdf-legacy-page + .pdf-legacy-page { margin-top: 16px; }
+[data-edit-key][contenteditable]:hover { outline: 1px dashed #869bb8; }
+[data-edit-key][contenteditable]:focus { outline: 1px solid #2854a0; background: #f1f6ff; }
+@media print { .pdf-legacy-page { page-break-after: always; margin: 0; box-shadow: none; } .pdf-editor-toolbar { display: none; } [data-edit-key][contenteditable] { outline: none !important; background: transparent !important; } }

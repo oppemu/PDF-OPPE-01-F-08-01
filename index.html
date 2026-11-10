@@ -7,26 +7,10 @@
     <!-- ใช้ Bootstrap และ Font เหมือนเดิม -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&family=TH+Sarabun+New&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <style>
-    .a4-preview {
-        background: #ffffff;
-        font-family: 'TH Sarabun New', sans-serif !important;
-        font-size: 18px !important; /* เปลี่ยนจาก 16px เป็น 18px */
-        line-height: 1.6;
-        font-weight: 300 !important;
-        color: #000000;
-        padding: 40px 50px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        max-width: 800px;
-        margin: 0 auto;
-        min-height: 80vh;
-    }
-    .a4-preview td, .a4-preview div, .a4-preview span, .a4-preview p {
-        font-family: 'TH Sarabun New', sans-serif !important;
-        font-size: 18px !important; /* เปลี่ยนจาก 16px เป็น 18px */
-    }
-</style>
+    <link rel="stylesheet" href="report_letter.css">
+
 </head>
 <body>
     <div class="container main-container mt-5 mb-5">
@@ -69,7 +53,16 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body bg-light">
-            <div class="a4-preview" id="previewContent"></div>
+            <h6 class="letter-preview-heading">เอกสารที่ 1: รายงานผลการตรวจสอบการส่งมอบงาน</h6>
+            <div id="letterNotice" class="letter-preview-notice"></div>
+            <div class="pdf-editor-toolbar">
+                <button type="button" id="btnReflowPdf" class="btn btn-outline-primary btn-sm" onclick="reflowDocumentPreview()">จัดหน้าใหม่</button>
+                <button type="button" id="btnResetPdf" class="btn btn-outline-secondary btn-sm" onclick="resetDocumentEdits()">คืนค่าต้นฉบับ</button>
+                <span id="editorStatus" role="status" aria-live="polite"></span>
+            </div>
+            <div id="letterPreview" class="letter-preview-scroll"></div>
+            <h6 class="letter-preview-heading">เอกสารที่ 2: แบบฟอร์มเดิม</h6>
+            <div class="legacy-preview-scroll" id="previewContent"></div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">ปิด</button>
@@ -83,6 +76,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="config.js"></script>
+    <script src="report_letter.js"></script>
+    <script src="report_editor.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
