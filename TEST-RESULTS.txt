@@ -1,0 +1,32 @@
+v1.3.0 - verified display-only change; no live deployment
+
+703 source/mock/browser checks passed:
+76 backend,30 submission idempotency,22 archive snapshots,435 readiness parity,
+106 worker/deletion review,10 renderer input,24 layout/footer/header checks.
+Two layout cases use real Chromium with external requests blocked and local
+Thai fonts loaded. Default npm test skips browser checks unless RUN_LAYOUT_BROWSER=1.
+
+Final PDF QA:55 retained test-fixture records rendered,223 pages total.
+4 records include a two-page letter; the remainder have a one-page letter.
+All final PDFs reopened: no document1 footer metadata; no document2 timestamp
+label คอลัมน์ 1, AS:BF labels or internal journal; columnA ID retained.
+All legacy footer sequences start at1. Physical page2 marker -2- retained.
+PMH department text is on one line, right aligned, unchanged font size15pt.
+DOM geometry checks report no page overflow or content/footer overlap.
+Representative PMH first page, document2 final page and two-page letter
+visually inspected after PNG rendering.
+
+Exact normalized label คอลัมน์1 is suppressed, NOT the first column.
+Unrelated labels and columnA remain; source arrays are not changed.
+Old edited letter-footer text (including newline) is ignored, cannot reappear,
+and does not block printing. Document2 custom footer is unchanged.
+Oversized/multiline department edits fail explicitly, not clipped or wrapped.
+Report web and archive use matching updated layout logic.
+
+Code.gs, ArchiveSnapshots.gs, form input files, readiness schema, archive core,
+Google adapter and deletion-sync logic byte-identical to v1.2.
+All57 business fields remain in source snapshots and readiness checks.
+No Sheet changes, Drive writes/deletions, or production PDF edits performed.
+Renderer version bumped; existing archived jobs/PDFs are NOT overwritten.
+Live website/Apps Script/worker deployment and user's native print dialog
+were not tested or changed. Tests use retained fixtures, not current live counts.

@@ -89,10 +89,15 @@ function getDocumentRowValue(row) {
 }
 
 function getLegacyDocumentRows(rows) {
-    // สองคอลัมน์ใหม่ใช้ในหนังสือส่วนแรกเท่านั้น ไม่เพิ่มแถวหรือหน้าในแบบฟอร์มเดิม
-    const letterOnlyLabels = ['เลขที่หนังสือส่งงานของบริษัท', 'วันที่บนหนังสือบริษัท',
-        'เลขที่หนังสือส่งมอบงาน', 'เลขที่หนังสือบริษัท', 'submissionLetterNo', 'submissionLetterDate'];
-    return rows.filter(row => !letterOnlyLabels.includes(String(row.label || '').replace(/\s+/g, '')));
+    // fullRowData preserves physical sheet order starting at column A.
+    // Hide AS (45) through BF (58) ONLY in document 2. Keep the source intact
+    // for document 1, readiness, snapshots and any future columns after BF.
+    return (Array.isArray(rows) ? rows : []).filter((row, index) =>
+        (index < 44 || index > 57) &&
+        !String(row && row.label || '').trim().startsWith('__') &&
+        // This is the timestamp field titled “คอลัมน์ 1”, not column A/ID.
+        String(row && row.label || '').replace(/\s+/g, '') !== 'คอลัมน์1'
+    );
 }
 
 function getSectionTitle(row, index) {
@@ -176,7 +181,7 @@ async function resetDocumentEdits() {
 }
 async function createPdfDocument(item, edits = {}) {
     const fileName = ReportLetter.getPdfFilename(item);
-    for (const key of ['letter-footer', 'legacy-footer']) {
+    for (const key of ['legacy-footer']) {
         if (Object.prototype.hasOwnProperty.call(edits, key) && /[\r\n]/.test(edits[key])) throw new Error('ข้อความ footer ต้องอยู่ในบรรทัดเดียว กรุณาตรวจข้อความก่อนพิมพ์');
     }
     const fullData = getLegacyDocumentRows(item.fullRowData);
@@ -254,7 +259,7 @@ async function createPdfDocument(item, edits = {}) {
         pages.push(currentPage);
     }
 
-    measureDiv.innerHTML = '<span style="font-size:14px;line-height:1.3;white-space:pre;">' + edit('legacy-footer', 'รหัสเอกสาร(Doc. No.): OPPE-01-F-08-01 | ฉบับที่ (Rev ที่.No.):00 | วันที่บังคับใช้ (Effective Date): 01/10/2026 | ') + String(letter.pageCount + pages.length) + '</span>';
+    measureDiv.innerHTML = '<span style="font-size:14px;line-height:1.3;white-space:pre;">' + edit('legacy-footer', 'รหัสเอกสาร(Doc. No.): OPPE-01-F-08-01 | ฉบับที่ (Rev ที่.No.):00 | วันที่บังคับใช้ (Effective Date): 01/10/2026 | ') + String(pages.length) + '</span>';
     measureDiv.querySelector('[data-edit-key]').style.whiteSpace = 'pre';
     if (measureDiv.firstElementChild.getBoundingClientRect().width > 190 * 96 / 25.4) {
         measureDiv.remove();
@@ -272,15 +277,15 @@ async function createPdfDocument(item, edits = {}) {
             '</div>' +
             '<div class="footer">' +
                 // แก้ไขบรรทัดนี้: นำคำว่า "หน้า " ออกไป เหลือเพียงตัวเลข (i + 1)
-                edit('legacy-footer', 'รหัสเอกสาร(Doc. No.): OPPE-01-F-08-01 | ฉบับที่ (Rev ที่.No.):00 | วันที่บังคับใช้ (Effective Date): 01/10/2026 | ') + '<span data-pdf-page-number>' + (letter.pageCount + i + 1) + '</span>' +
+                edit('legacy-footer', 'รหัสเอกสาร(Doc. No.): OPPE-01-F-08-01 | ฉบับที่ (Rev ที่.No.):00 | วันที่บังคับใช้ (Effective Date): 01/10/2026 | ') + '<span data-pdf-page-number>' + (i + 1) + '</span>' +
             '</div>' +
         '</div>';
     });
 
-    // คงเนื้อหาและฟอนต์แบบเดิม ปรับขอบตามคำขอล่าสุดและรันเลขหน้าต่อกัน
+    // เอกสารที่ 2 เริ่ม footer ที่ 1; เลข -2- ด้านบนยังอิงหน้าจริงของ PDF ตามเดิม
     const numberedPages = document.createElement('div');
     numberedPages.innerHTML = pagesHtml;
-    ReportLetter.numberPages(numberedPages, letter.pageCount + 1);
+    ReportLetter.numberPages(numberedPages, 1, letter.pageCount + 1);
     pagesHtml = numberedPages.innerHTML;
 
     const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + ReportLetter.escapeHtml(fileName.slice(0, -4)) + '</title>' +
@@ -294,7 +299,7 @@ async function createPdfDocument(item, edits = {}) {
             '.title { text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 15px; color: #000000; }' +
             '.footer { position: absolute; bottom: 5mm; right: 10mm; font-size: 14px; color: #000000; text-align: right; }' +
             '@media print { body { background: white; } .page { margin: 0; box-shadow: none; page-break-after: always; } }' +
-        '</style><link rel="stylesheet" href="report_letter.css"></head><body>' +
+        '</style><link rel="stylesheet" href="report_letter.css?v=1.3.0"></head><body>' +
         letter.html + pagesHtml +
         '<script>' +
             'window.onload = async function() { if (document.fonts) await document.fonts.ready; await Promise.all(Array.from(document.images).map(function(img) { return img.complete ? Promise.resolve() : new Promise(function(resolve) { img.onload = img.onerror = resolve; }); })); window.print(); };' +

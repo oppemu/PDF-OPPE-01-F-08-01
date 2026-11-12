@@ -35,13 +35,17 @@
 .letter-content { display: flow-root; }
 
 .letter-logo { position: absolute; left: 50%; transform: translateX(-50%); top: 20mm; width: auto; height: auto; max-width: 25mm; max-height: 25mm; object-fit: contain; }
-/* Keep the sender block in document flow so a wrapped department never overlaps ที่/วันที่. */
+/* Give the sender the full text width; department stays on one right-aligned line. */
 .letter-header { padding-top: 36.445pt; text-align: right; margin-bottom: 20pt; }
-.letter-department { margin-left: 360pt; text-align: left; }
-.letter-label { display: inline-block; margin-right: 0.635cm; flex-shrink: 0; }
+.letter-department { margin-left: 0; text-align: right; white-space: nowrap; }
+.letter-department .pdf-edit-text { white-space: nowrap; }
+.letter-label { display: inline-block; margin-right: 1.27cm; flex-shrink: 0; }
+/* TH Sarabun New space = 216/1000 em: three spaces are 0.648 em. */
+.letter-label.letter-label-three-spaces { margin-right: 0.648em; }
 .letter-gap-text { display: inline-block; width: 0; height: 0; overflow: hidden; vertical-align: baseline; font-size: 0; line-height: 0; white-space: pre; }
 .letter-meta { margin-bottom: 20pt; }
-.letter-subject { display: block; }
+.letter-subject { display: block; text-align: justify; text-align-last: left; text-justify: auto; }
+.letter-subject > .pdf-edit-text { white-space: normal; }
 .letter-recipient { margin-bottom: 16.445pt; }
 .letter-recipient-position { margin-left: 36pt; }
 .letter-body p { margin: 0 0 16.445pt; text-indent: 2.54cm; text-align: justify; text-align-last: left; text-justify: auto; }

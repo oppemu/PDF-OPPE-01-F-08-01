@@ -1,0 +1,5 @@
+TH Sarabun New, Regular and Bold. Version 1.35 (2011).
+Unmodified files from the Royal Irrigation Department website:
+https://imd.rid.go.th/rid_dc/assets/fonts/THSarabunNew.ttf
+https://imd.rid.go.th/rid_dc/assets/fonts/THSarabunNewBold.ttf
+License: GPL version 2 or later, with the font embedding exception. See LICENSE-TH-Sarabun-New.txt and COPYING-GPL-2.0.txt.

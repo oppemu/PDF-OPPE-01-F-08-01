@@ -1,6 +1,7 @@
 /* หนังสือรายงานส่วนแรก: อ่านข้อมูลจาก item ของแถวที่เลือกเท่านั้น */
 (function (root) {
     'use strict';
+    const contacts = typeof module !== 'undefined' && module.exports ? require('./report_contacts.js') : root.ReportContacts;
 
     const BLANK = '................................';
     // รหัสในชีตคงเดิม แปลงเฉพาะการแสดงผลเอกสาร ตามรายชื่อที่ผู้ใช้ยืนยัน
@@ -291,9 +292,10 @@
         return `<span class="pdf-edit-text${changed ? ' pdf-edited-text' : ''}" data-edit-key="${escapeHtml(key)}">${content}</span>`;
     }
     function editHeaderLine(key, label, valueHtml, edits) {
-        const line = (html, separator = '') => `<span class="letter-label">${label}${separator ? `<span class="letter-gap-text">${escapeHtml(separator)}</span>` : ''}</span><span class="letter-field-value">${html}</span>`;
+        const compactGap = key === 'letter-subject' || key === 'letter-recipient';
+        const line = (html, separator = '') => `<span class="letter-label${compactGap ? ' letter-label-three-spaces' : ''}">${label}${separator ? `<span class="letter-gap-text">${escapeHtml(separator)}</span>` : ''}</span><span class="letter-field-value">${html}</span>`;
         return editText(key, line(valueHtml), edits, value => {
-            // Keep the half-tab gap after the original label when the line is edited.
+            // Keep the configured gap after the original label when the line is edited.
             // A deliberately deleted/renamed label stays as the user typed it.
             if (!value.startsWith(label)) return escapeHtml(value);
             const tail = value.slice(label.length);
@@ -301,10 +303,9 @@
             return line(escapeHtml(tail.slice(separator.length)), separator);
         });
     }
-    const FOOTER_TEXT = 'รหัสเอกสาร(Doc. No.): OPPE-01-F-08-01 | ฉบับที่ (Rev ที่.No.):00 | วันที่บังคับใช้ (Effective Date): 01/10/2026 | ';
-    function footerHtml(pageNumber, edits = {}) {
-        return `<div class="letter-footer">${editText('letter-footer', FOOTER_TEXT, edits)}<span data-pdf-page-number>${pageNumber}</span></div>`;
-    }
+    // Document 1 has no footer (including the descriptive metadata line).
+    // Keep the public helper for compatibility; old preview footer edits are ignored.
+    function footerHtml() { return ''; }
     function signaturesHtml(item, edits = {}) {
         const personnel = getPersonnel(item);
         const signature = (name, role, key, id) => `<div class="letter-signature-person" data-person-role="${key}"><div class="letter-signature-space" aria-label="พื้นที่สำหรับลงลายมือชื่อ"></div><div class="letter-signature-name">${editText('letter-name-' + id, `( ${escapeHtml(formatPersonName(name) || BLANK)} )`, edits)}</div><div>${editText('letter-role-' + id, role, edits)}</div></div>`;
@@ -337,9 +338,23 @@
             'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
         return `${day} ${months[month - 1]} ${ce + 543}`;
     }
+    function getPhoneContact(item) {
+        // C is the report owner. AU/AV/AW are signatories, not substitute contact people.
+        const name = field(item, ['ชื่อผู้กรอกข้อมูล'], ['colC']);
+        if (!name) return { name: '', status: 'missing-name', phone: '', extension: '' };
+        const match = contacts ? contacts.lookup(name) : { status: 'unavailable', contact: null };
+        return { name, status: match.status, phone: match.contact ? match.contact.phone : '', extension: match.status === 'matched' ? match.contact.extension : '' };
+    }
+    function formatPhoneNumber(value) {
+        const source = text(value);
+        if (/^02\d{7}$/.test(source)) return source.replace(/^(02)(\d{3})(\d{4})$/, '$1-$2-$3');
+        if (/^0\d{9}$/.test(source)) return source.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
+        return source;
+    }
     function getFields(item) {
         const get = (labels, keys) => field(item, labels, keys);
         const department = expandDepartment(get(['หน่วยงาน', 'หน่วยงานต้นสังกัด'], ['colD']));
+        const contact = getPhoneContact(item);
         return {
             department,
             company: get(['ชื่อบริษัทดำเนินการ'], ['colJ']),
@@ -360,7 +375,8 @@
             status: get(['สถานะงาน'], ['colAM']),
             // ช่องที่ไม่มีข้อมูลให้เว้นจุดไว้ ไม่ใช้ ID/เลขสัญญาหรือวันที่อื่นแทน
             memoNumber: '', // ออกเลขที่เอกสารในระบบภายหลัง
-            phoneExtension: departmentExtension(department) || get(['เบอร์โทรภายใน', 'เบอร์ต่อ']),
+            phoneNumber: formatPhoneNumber(contact.phone),
+            phoneExtension: contact.extension,
             companyLetterNumber: get(['เลขที่หนังสือส่งงานของบริษัท', 'เลขที่หนังสือส่งมอบงาน', 'เลขที่หนังสือบริษัท'], ['submissionLetterNo'])
         };
     }
@@ -426,7 +442,7 @@
                 <div class="letter-department">${edit('letter-department', value('department'))}</div>
                 <div>${edit('letter-division', 'กองกายภาพและสิ่งแวดล้อม')}</div>
                 <div>${edit('letter-university', 'สำนักงานอธิการบดี มหาวิทยาลัยมหิดล')}</div>
-                <div class="letter-phone">${edit('letter-phone', `โทร. 02-441-4400 ต่อ ${value('phoneExtension')}`)}</div>
+                <div class="letter-phone">${edit('letter-phone', `โทร. ${value('phoneNumber')} ${/^กด\s/.test(fields.phoneExtension) ? '' : 'ต่อ '}${value('phoneExtension')}`)}</div>
             </div>
             <div class="letter-meta">
                 <div data-field="memo-number-line">${headerLine('letter-number', 'ที่')}</div>
@@ -449,7 +465,6 @@
         const body = first.querySelector('.letter-body');
         const signatures = first.querySelector('.letter-signatures');
         const blocks = [...body.children].map(node => ({node, kind: 'body'}));
-        const footerTemplate = first.querySelector('.letter-footer').outerHTML;
         const primary = signatures.querySelector('.letter-signature-primary');
         const remaining = signatures.querySelector('.letter-signature-remaining');
         body.remove(); signatures.remove();
@@ -457,15 +472,14 @@
         let section = null;
         let kind = '';
         const fits = node => {
-            const footer = page.querySelector('.letter-footer').getBoundingClientRect();
-            // เลื่อนเฉพาะ footer ลง แต่คงพื้นที่เนื้อหาและการแบ่งหน้าลายเซ็นเดิม
-            const contentLimit = page.getBoundingClientRect().bottom - (10 * 96 / 25.4) - footer.height - 8;
-            return node.getBoundingClientRect().bottom <= Math.min(footer.top - 8, contentLimit);
+            // Preserve the existing content/signature boundary after removing the footer.
+            const contentLimit = page.getBoundingClientRect().bottom - (10 * 96 / 25.4) - (14 * 1.3) - 8;
+            return node.getBoundingClientRect().bottom <= contentLimit;
         };
         const newPage = () => {
             page = first.cloneNode(false);
             page.classList.add('letter-continuation');
-            page.innerHTML = '<div class="letter-content"></div>' + footerTemplate;
+            page.innerHTML = '<div class="letter-content"></div>';
             container.appendChild(page);
             numberPages(container); // เผื่อพื้นที่เลข -2- ก่อนวัดความสูงเนื้อหาหน้าถัดไป
             section = null; kind = '';
@@ -517,14 +531,18 @@
         }
         return numberPages(container);
     }
-    function numberPages(container, startNumber = 1) {
+    function numberPages(container, startNumber = 1, physicalStartNumber = startNumber) {
         const pages = container.querySelectorAll('.letter-page, .page');
         pages.forEach((page, i) => {
             const number = startNumber + i;
-            page.classList.toggle('has-second-page-marker', number === 2);
-            page.querySelectorAll('[data-pdf-page-number]').forEach(label => { label.textContent = number; });
+            const physicalNumber = physicalStartNumber + i;
+            page.classList.toggle('has-second-page-marker', physicalNumber === 2);
+            page.querySelectorAll('[data-pdf-page-number]').forEach(label => {
+                if (page.classList.contains('letter-page')) label.remove();
+                else label.textContent = number;
+            });
             page.querySelectorAll('.pdf-second-page-marker').forEach(marker => marker.remove());
-            if (number === 2) {
+            if (physicalNumber === 2) {
                 const marker = document.createElement('div');
                 marker.className = 'pdf-second-page-marker';
                 marker.textContent = '-2-';
@@ -542,17 +560,27 @@
             if (document.fonts) await document.fonts.ready;
             await Promise.all([...container.querySelectorAll('img')].map(img => img.complete ? Promise.resolve() : new Promise(resolve => { img.onload = img.onerror = resolve; })));
             const pageCount = paginate(container);
-            for (const footer of container.querySelectorAll('.letter-footer')) {
-                if (footer.scrollWidth > footer.clientWidth + 1) throw new Error('ข้อความ footer ของหนังสือยาวเกินขอบกระดาษ กรุณาย่อข้อความก่อนพิมพ์');
+            for (const department of container.querySelectorAll('.letter-department')) {
+                if (/[\r\n]/.test(department.textContent)) throw new Error('ชื่อหน่วยงานต้องอยู่ในบรรทัดเดียว กรุณาลบการขึ้นบรรทัดใหม่ก่อนพิมพ์');
+                if (department.scrollWidth > department.clientWidth + 1) throw new Error('ชื่อหน่วยงานยาวเกินหนึ่งบรรทัด กรุณาตรวจข้อความก่อนพิมพ์');
             }
             return {html: container.innerHTML, pageCount};
         } finally { container.remove(); }
     }
     function missingFields(item) {
         const fields = getFields(item);
-        const labels = { department: 'หน่วยงาน', subject: 'เรื่องที่ดำเนินการ', installment: 'งวดงาน', completionDate: 'วันที่ดำเนินการแล้วเสร็จ', company: 'ชื่อบริษัทดำเนินการ', status: 'สถานะงาน', phoneExtension: 'เบอร์ต่อ', companyLetterNumber: 'เลขที่หนังสือบริษัท',
+        const labels = { department: 'หน่วยงาน', subject: 'เรื่องที่ดำเนินการ', installment: 'งวดงาน', completionDate: 'วันที่ดำเนินการแล้วเสร็จ', company: 'ชื่อบริษัทดำเนินการ', status: 'สถานะงาน', phoneNumber: 'หมายเลขโทรศัพท์', phoneExtension: 'เบอร์ต่อ', companyLetterNumber: 'เลขที่หนังสือบริษัท',
             companyLetterDate: 'วันที่บนหนังสือบริษัท', contractNumber: 'เลขที่สัญญา', contractDate: 'วันที่ลงนามในสัญญา' };
         const missing = Object.keys(labels).filter(key => !fields[key]).map(key => labels[key]);
+        const contact = getPhoneContact(item);
+        const contactWarnings = {
+            'missing-name': 'ไม่มีชื่อผู้กรอกข้อมูลสำหรับค้นหาเบอร์ติดต่อ',
+            'not-found': 'ไม่พบชื่อผู้กรอกข้อมูลในรายชื่อเบอร์ติดต่อ',
+            'ambiguous': 'ชื่อผู้กรอกข้อมูลซ้ำในรายชื่อเบอร์ติดต่อ ต้องตรวจสอบ',
+            'missing-extension': 'รายชื่อเบอร์ติดต่อยังไม่มีเบอร์ต่อของผู้กรอกข้อมูล',
+            'unavailable': 'ไม่พบไฟล์ report_contacts.js สำหรับค้นหาเบอร์ต่อ'
+        };
+        if (contactWarnings[contact.status]) missing.push(contactWarnings[contact.status] + (contact.name ? ': ' + contact.name : ''));
         const personnel = getPersonnel(item);
         if (!personnel.chair) missing.push('ชื่อประธานตรวจรับ');
         if (!personnel.chiefs.length) missing.push('ชื่อหัวหน้าผู้ควบคุมงาน');
@@ -561,6 +589,6 @@
             .forEach(name => missing.push('คำนำหน้า ' + name));
         return missing;
     }
-    root.ReportLetter = { getPdfFilename, editText, buildHtml, getFields, getPersonnel, parsePeople, formatPersonName, hasVerifiedPrefix, paginate, renderPaginated, numberPages, footerHtml, missingFields, formatDate, formatInstallment, formatSubject, statusKind, escapeHtml, expandDepartment, departmentExtension };
+    root.ReportLetter = { getPdfFilename, editText, buildHtml, getFields, getPhoneContact, formatPhoneNumber, getPersonnel, parsePeople, formatPersonName, hasVerifiedPrefix, paginate, renderPaginated, numberPages, footerHtml, missingFields, formatDate, formatInstallment, formatSubject, statusKind, escapeHtml, expandDepartment, departmentExtension };
     if (typeof module !== 'undefined' && module.exports) module.exports = root.ReportLetter;
 }(typeof window !== 'undefined' ? window : globalThis));

@@ -1,0 +1,2 @@
+v1.3.0
+Department on one line; document1 has no footer; document2 hides timestamp label คอลัมน์ 1 and AS:BF, retains columnA and footer starts1.
